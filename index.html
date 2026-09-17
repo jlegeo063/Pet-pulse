@@ -1,0 +1,1133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PETSTRESS - Dashboard</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+<div class="dashboard">
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="logo"><i class="fas fa-paw"></i><h2>PET<span>STRESS</span></h2></div>
+        <div class="user-info">
+            <div class="avatar"><i class="fas fa-user-circle"></i></div>
+            <h3>{{ username }}</h3>
+            <p class="user-role">Pet Owner</p>
+        </div>
+        <nav class="nav-menu">
+            <a href="#" class="nav-item active" id="nav-dashboard"><i class="fas fa-home"></i> Dashboard</a>
+            <a href="#" class="nav-item" id="nav-wound-detection"><i class="fas fa-upload"></i> Upload</a>
+            <a href="#" class="nav-item" id="nav-combined-detection"><i class="fas fa-video"></i> Live Detection</a>
+            <a href="#" class="nav-item" id="nav-history"><i class="fas fa-history"></i> Event History</a>
+            <a href="#" class="nav-item" id="nav-settings"><i class="fas fa-cog"></i> Settings</a>
+            <a href="/logout" class="nav-item logout"><i class="fas fa-sign-out-alt"></i> Logout</a>
+        </nav>
+        <div class="system-status">
+            <h4><i class="fas fa-heartbeat"></i> System Status</h4>
+            <div class="status-item"><span class="status-label">Stress Model:</span><span class="status-value online" id="model-status">Ready</span></div>
+            <div class="status-item"><span class="status-label">Wound Model:</span><span class="status-value online" id="wound-model-status">Ready</span></div>
+            <div class="status-item"><span class="status-label">Database:</span><span class="status-value online" id="db-status">Connected</span></div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <header class="main-header">
+            <h1 id="page-title">Dashboard</h1>
+            <div class="header-actions">
+                <div class="current-time" id="current-time"></div>
+            </div>
+        </header>
+
+        <!-- ── Dashboard ─────────────────────────── -->
+        <div class="content-section active" id="dashboard-content">
+            <div class="stats-grid">
+                <div class="stat-card"><div class="stat-icon"><i class="fas fa-heartbeat"></i></div><div class="stat-info"><h3 id="total-events">{{ stats.total_events }}</h3><p>Total Stress Events</p></div></div>
+                <div class="stat-card"><div class="stat-icon stressed"><i class="fas fa-exclamation-triangle"></i></div><div class="stat-info"><h3 id="stressed-events">{{ stats.stressed_events }}</h3><p>Stress Events</p></div></div>
+                <div class="stat-card"><div class="stat-icon"><i class="fas fa-first-aid"></i></div><div class="stat-info"><h3 id="wound-events">{{ stats.wound_events }}</h3><p>Wound Events</p></div></div>
+                <div class="stat-card"><div class="stat-icon"><i class="fas fa-chart-line"></i></div><div class="stat-info"><h3 id="health-score">{{ stats.health_score }}%</h3><p>Health Score</p></div></div>
+            </div>
+            <div class="charts-row">
+                <div class="chart-container"><h3><i class="fas fa-chart-pie"></i> Stress Distribution</h3><canvas id="stressChart" width="400" height="300"></canvas></div>
+                <div class="chart-container"><h3><i class="fas fa-chart-bar"></i> Recent Activity (7 Days)</h3><canvas id="timelineChart" width="400" height="300"></canvas></div>
+            </div>
+            <div class="recent-events">
+                <h3><i class="fas fa-history"></i> Recent Stress Events</h3>
+                <div class="events-table">
+                    <table>
+                        <thead><tr><th>Time</th><th>Status</th><th>Intensity</th><th>Confidence</th></tr></thead>
+                        <tbody id="recent-events-body">
+                            {% for event in recent_events %}
+                            <tr>
+                                <td>{{ event[0] }}</td>
+                                <td>{% if event[1] == 'Stressed' %}<span class="status-badge stressed">Stressed</span>{% else %}<span class="status-badge normal">Normal</span>{% endif %}</td>
+                                <td>{{ event[2] }}%</td>
+                                <td>{{ event[3]|round(2) }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Upload ─────────────────────────────── -->
+        <div class="content-section" id="wound-detection-content">
+            <div class="detection-container">
+                <div class="detection-header">
+                    <h2><i class="fas fa-upload"></i> Upload</h2>
+                    <p class="subtitle">Upload an audio file for stress detection, or an image / video for wound detection</p>
+                </div>
+
+                <!-- Three upload cards -->
+                <div class="detection-methods" style="flex-wrap:wrap; gap:20px;">
+
+                    <!-- ── Audio upload → Stress Model ── -->
+                    <div class="method-card" style="flex:1; min-width:220px;">
+                        <div class="method-icon"><i class="fas fa-file-audio"></i></div>
+                        <h3>Upload Audio</h3>
+                        <p>Analyse pet vocalisation for stress (WAV, MP3, etc.)</p>
+                        <input type="file" id="audio-upload-file" accept="audio/*" style="display:none;">
+                        <button class="btn-method" id="btn-choose-audio" onclick="document.getElementById('audio-upload-file').click()">
+                            <i class="fas fa-folder-open"></i> Choose Audio
+                        </button>
+                        <div class="file-info" id="audio-upload-info" style="display:none; margin-top:15px;">
+                            <p><i class="fas fa-file-audio"></i> <span id="audio-upload-name"></span></p>
+                            <button class="btn-analyze" id="btn-analyze-audio-upload"><i class="fas fa-chart-line"></i> Analyse Stress</button>
+                            <button class="btn-cancel" id="btn-cancel-audio-upload"><i class="fas fa-times"></i> Cancel</button>
+                        </div>
+                        <div id="audio-upload-loading" style="display:none; margin-top:12px; color:#667eea; font-weight:600;">
+                            <i class="fas fa-spinner fa-spin"></i> Analysing audio…
+                        </div>
+                    </div>
+
+                    <!-- ── Image upload → YOLO Wound Model ── -->
+                    <div class="method-card" style="flex:1; min-width:220px;">
+                        <div class="method-icon"><i class="fas fa-file-image"></i></div>
+                        <h3>Upload Image</h3>
+                        <p>Detect wounds in a photo (JPG, PNG, etc.)</p>
+                        <input type="file" id="wound-image-upload" accept="image/*" style="display:none;">
+                        <button class="btn-method" id="btn-choose-image" onclick="document.getElementById('wound-image-upload').click()">
+                            <i class="fas fa-folder-open"></i> Choose Image
+                        </button>
+                        <div class="file-info" id="wound-image-info" style="display:none; margin-top:15px;">
+                            <p><i class="fas fa-image"></i> <span id="wound-image-name"></span></p>
+                            <button class="btn-analyze" id="btn-analyze-wound-image"><i class="fas fa-search"></i> Detect Wounds</button>
+                            <button class="btn-cancel" id="btn-cancel-wound-image"><i class="fas fa-times"></i> Cancel</button>
+                        </div>
+                        <div id="image-upload-loading" style="display:none; margin-top:12px; color:#667eea; font-weight:600;">
+                            <i class="fas fa-spinner fa-spin"></i> Detecting wounds…
+                        </div>
+                    </div>
+
+                    <!-- ── Video upload → YOLO Wound Model ── -->
+                    <div class="method-card" style="flex:1; min-width:220px;">
+                        <div class="method-icon"><i class="fas fa-video"></i></div>
+                        <h3>Upload Video</h3>
+                        <p>Detect wounds across video frames (MP4, WebM, etc.)</p>
+                        <input type="file" id="wound-video-upload" accept="video/*" style="display:none;">
+                        <button class="btn-method" id="btn-choose-video" onclick="document.getElementById('wound-video-upload').click()">
+                            <i class="fas fa-folder-open"></i> Choose Video
+                        </button>
+                        <div class="file-info" id="wound-video-info" style="display:none; margin-top:15px;">
+                            <p><i class="fas fa-video"></i> <span id="wound-video-name"></span></p>
+                            <button class="btn-analyze" id="btn-analyze-wound-video"><i class="fas fa-search"></i> Analyse Video</button>
+                            <button class="btn-cancel" id="btn-cancel-wound-video"><i class="fas fa-times"></i> Cancel</button>
+                        </div>
+                        <div id="video-upload-loading" style="display:none; margin-top:12px; color:#667eea; font-weight:600;">
+                            <i class="fas fa-spinner fa-spin"></i> Analysing video frames…
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── Stress result (audio upload) ── -->
+                <div id="upload-stress-result" style="display:none; margin-top:30px;">
+                    <h3><i class="fas fa-clipboard-check"></i> Stress Detection Result</h3>
+                    <div class="result-card">
+                        <div class="result-status">
+                            <div class="status-indicator normal" id="upload-stress-indicator"><i class="fas fa-check-circle"></i></div>
+                            <h2 id="upload-stress-class">—</h2>
+                        </div>
+                        <div class="result-details">
+                            <div class="detail-item"><span class="detail-label">Stress Intensity:</span><span id="upload-stress-intensity">—</span></div>
+                            <div class="detail-item"><span class="detail-label">Confidence:</span><span id="upload-stress-confidence">—</span></div>
+                            <div class="detail-item"><span class="detail-label">Timestamp:</span><span id="upload-stress-timestamp">—</span></div>
+                        </div>
+                        <div class="recommendations" id="upload-stress-recs" style="display:none;">
+                            <h4><i class="fas fa-lightbulb"></i> Recommendations</h4>
+                            <p id="upload-stress-rec-text"></p>
+                        </div>
+                    </div>
+                    <div class="alert-box" id="upload-stress-alert-box" style="display:none; margin-top:15px;">
+                        <div class="alert-header"><i class="fas fa-exclamation-triangle"></i><h3>Stress Alert</h3></div>
+                        <p id="upload-stress-alert-msg"></p>
+                        <button class="btn-alert-action" onclick="document.getElementById('upload-stress-alert-box').style.display='none'">Dismiss</button>
+                    </div>
+                </div>
+
+                <!-- ── Wound result (image / video upload) ── -->
+                <div class="results-container" id="wound-results-container" style="display:none; margin-top:30px;">
+                    <h3><i class="fas fa-clipboard-check"></i> Wound Detection Results</h3>
+                    <div class="result-card">
+                        <div class="result-status">
+                            <div class="status-indicator normal" id="wound-status-indicator"><i class="fas fa-check-circle"></i></div>
+                            <h2 id="wound-overall-severity">No Wounds Detected</h2>
+                        </div>
+                        <div class="result-details">
+                            <div class="detail-item"><span class="detail-label">Detected Wound Types:</span><div class="wound-tags" id="wound-types-tags"></div></div>
+                            <div class="detail-item"><span class="detail-label">Confidence:</span><span id="wound-confidence-value">0%</span></div>
+                            <div class="detail-item"><span class="detail-label">Detection Time:</span><span id="wound-timestamp-value"></span></div>
+                        </div>
+                        <div class="recommendations"><h4><i class="fas fa-lightbulb"></i> Recommendations</h4><ul id="wound-recommendations-list"></ul></div>
+                    </div>
+                </div>
+                <div class="alert-box" id="wound-alert-box" style="display:none; margin-top:15px;">
+                    <div class="alert-header"><i class="fas fa-exclamation-triangle"></i><h3>Wound Alert</h3></div>
+                    <p id="wound-alert-message"></p>
+                    <button class="btn-alert-action" onclick="document.getElementById('wound-alert-box').style.display='none'">Dismiss</button>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- ── Live Detection ────────────────────── -->
+        <div class="content-section" id="combined-detection-content">
+            <div class="detection-container">
+                <div class="detection-header">
+                    <h2><i class="fas fa-video"></i> Live Detection</h2>
+                    <p class="subtitle">Records your microphone &amp; camera for the chosen duration, then analyses both with AI</p>
+                </div>
+
+                <div class="detection-methods">
+                    <div class="method-card" style="max-width:620px; margin:0 auto;">
+                        <div class="method-icon"><i class="fas fa-camera"></i>&nbsp;<i class="fas fa-microphone"></i></div>
+                        <h3>Live Detection Setup</h3>
+                        <p style="margin-bottom:12px;">Click <strong>Start</strong> to begin recording. The system records audio and video for the selected duration, then sends <em>only that recording</em> to the AI models. Camera and mic are released as soon as recording ends.</p>
+
+                        <div style="margin-bottom:18px;">
+                            <label for="detection-duration" style="font-weight:600;">Recording Duration:</label>
+                            <select id="detection-duration" style="margin-left:8px; padding:6px 10px; border-radius:6px; border:1px solid #ccc;">
+                                <option value="3">3 seconds</option>
+                                <option value="5" selected>5 seconds</option>
+                                <option value="10">10 seconds</option>
+                                <option value="15">15 seconds</option>
+                            </select>
+                        </div>
+
+                        <button class="btn-method" id="start-live-detection">
+                            <i class="fas fa-play-circle"></i> Start Live Detection
+                        </button>
+
+                        <!-- Status / progress -->
+                        <div id="live-status-bar" style="display:none; margin-top:20px; padding:14px; background:#f8f9fa; border-radius:10px; border:1px solid #dee2e6;">
+                            <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
+                                <span id="live-status-icon" style="font-size:1.5em;">🎙️</span>
+                                <span id="live-status-text" style="font-weight:600; font-size:1em;">Waiting…</span>
+                            </div>
+                            <div style="background:#e9ecef; border-radius:8px; height:12px; overflow:hidden;">
+                                <div id="live-progress-fill" style="height:100%; width:0%; background:linear-gradient(90deg,#667eea,#764ba2); transition:width 0.25s ease; border-radius:8px;"></div>
+                            </div>
+                            <div id="live-countdown" style="text-align:right; font-size:0.85em; color:#666; margin-top:5px;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Live camera preview shown ONLY while recording -->
+                <div id="camera-preview" style="display:none; margin-top:22px; text-align:center;">
+                    <h3><i class="fas fa-eye"></i> Live Preview — Recording in progress</h3>
+                    <video id="preview-video" width="480" height="360"
+                           style="border-radius:10px; border:2px solid #667eea; background:#000;"
+                           autoplay muted playsinline></video>
+                </div>
+
+                <!-- Results -->
+                <div id="combined-results" style="display:none; margin-top:30px;">
+                    <h3><i class="fas fa-clipboard-check"></i> Live Detection Results</h3>
+                    <div class="results-grid">
+
+                        <!-- Stress card -->
+                        <div class="result-card">
+                            <div class="result-header"><i class="fas fa-heartbeat"></i><h4>Stress Detection</h4></div>
+                            <div class="result-status" id="combined-stress-status">
+                                <div class="status-indicator normal" id="cs-indicator"><i class="fas fa-check-circle"></i></div>
+                                <h2 id="combined-stress-class">—</h2>
+                            </div>
+                            <div class="result-details">
+                                <div class="detail-item"><span class="detail-label">Stress Intensity:</span><span id="combined-stress-intensity">—</span></div>
+                                <div class="detail-item"><span class="detail-label">Confidence:</span><span id="combined-stress-confidence">—</span></div>
+                                <div class="detail-item" id="cs-error-row" style="display:none;">
+                                    <span class="detail-label" style="color:#ff6b6b;">Note:</span>
+                                    <span id="cs-error-msg" style="color:#ff6b6b; font-size:0.9em;"></span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Wound card -->
+                        <div class="result-card">
+                            <div class="result-header"><i class="fas fa-first-aid"></i><h4>Wound Detection</h4></div>
+                            <div class="result-status" id="combined-wound-status">
+                                <div class="status-indicator normal" id="cw-indicator"><i class="fas fa-check-circle"></i></div>
+                                <h2 id="combined-wound-severity">—</h2>
+                            </div>
+                            <div class="result-details">
+                                <div class="detail-item"><span class="detail-label">Wound Types:</span><div class="wound-tags" id="combined-wound-types"></div></div>
+                                <div class="detail-item"><span class="detail-label">Confidence:</span><span id="combined-wound-confidence">—</span></div>
+                                <div class="detail-item" id="cw-error-row" style="display:none;">
+                                    <span class="detail-label" style="color:#ff6b6b;">Note:</span>
+                                    <span id="cw-error-msg" style="color:#ff6b6b; font-size:0.9em;"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="combined-recommendations" style="margin-top:20px;">
+                        <h4><i class="fas fa-lightbulb"></i> Recommendations</h4>
+                        <div id="combined-recommendations-list"></div>
+                    </div>
+                </div>
+
+                <div class="alert-box combined-alert" id="combined-alert-box" style="display:none; margin-top:20px;">
+                    <div class="alert-header"><i class="fas fa-exclamation-triangle"></i><h3>Detection Alert</h3></div>
+                    <p id="combined-alert-message"></p>
+                    <button class="btn-alert-action" onclick="document.getElementById('combined-alert-box').style.display='none'">Dismiss</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── History ───────────────────────────── -->
+        <div class="content-section" id="history-content">
+            <div class="history-container">
+                <h2><i class="fas fa-history"></i> Event History</h2>
+                <div class="history-tabs">
+                    <button class="tab-btn active" onclick="showHistoryTab('stress', event)">Stress Events</button>
+                    <button class="tab-btn" onclick="showHistoryTab('wound', event)">Wound Events</button>
+                </div>
+                <div class="tab-content active" id="stress-history">
+                    <div class="history-table-container">
+                        <table class="history-table">
+                            <thead><tr><th>Date &amp; Time</th><th>Status</th><th>Intensity</th><th>Confidence</th></tr></thead>
+                            <tbody id="stress-history-table-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="tab-content" id="wound-history">
+                    <div class="history-table-container">
+                        <table class="history-table">
+                            <thead><tr><th>Date &amp; Time</th><th>Wound Types</th><th>Severity</th><th>Confidence</th></tr></thead>
+                            <tbody id="wound-history-table-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ── Settings ──────────────────────────── -->
+        <div class="content-section" id="settings-content">
+            <div class="settings-container">
+                <h2><i class="fas fa-cog"></i> System Settings</h2>
+                <div class="settings-grid">
+                    <div class="setting-card">
+                        <h3><i class="fas fa-bell"></i> Alert Settings</h3>
+                        <div class="setting-item">
+                            <label for="alert-threshold">Stress Alert Threshold</label>
+                            <p class="setting-desc">Number of stress events in 30 min before sending email</p>
+                            <input type="range" id="alert-threshold" min="1" max="10" value="3">
+                            <span class="threshold-value" id="threshold-value">3 events</span>
+                        </div>
+                        <div class="setting-item"><label class="checkbox-label"><input type="checkbox" id="email-notifications" checked><span>Enable email notifications</span></label></div>
+                        <div class="setting-item"><label for="recipient-email">Recipient Email</label><input type="email" id="recipient-email" placeholder="Enter email for alerts"></div>
+                    </div>
+                    <div class="setting-card">
+                        <h3><i class="fas fa-paw"></i> Pet Information</h3>
+                        <div class="setting-item"><label for="pet-name">Pet Name</label><input type="text" id="pet-name" placeholder="Enter your pet's name"></div>
+                        <div class="setting-item"><label for="pet-type">Pet Type</label><select id="pet-type"><option value="dog">Dog</option><option value="cat">Cat</option></select></div>
+                        <div class="setting-item"><label for="pet-age">Pet Age (years)</label><input type="number" id="pet-age" min="0" max="30" placeholder="Enter pet's age"></div>
+                        <div class="email-test">
+                            <button class="btn-test" onclick="testEmailSettings()"><i class="fas fa-paper-plane"></i> Test Email Settings</button>
+                            <div class="test-result" id="test-result"></div>
+                        </div>
+                        <button class="btn-save" onclick="saveSettings()"><i class="fas fa-save"></i> Save Settings</button>
+                    </div>
+                </div>
+                <div class="email-info">
+                    <h3><i class="fas fa-info-circle"></i> Email Configuration</h3>
+                    <p>Email notifications are sent from: <strong>petstress@gmail.com</strong></p>
+                    <p class="note">Note: You only need to provide the recipient email address above.</p>
+                </div>
+            </div>
+        </div>
+
+    </div><!-- /main-content -->
+</div><!-- /dashboard -->
+
+<script src="/static/script.js"></script>
+<script>
+// ─────────────────────────────────────────────
+// Globals
+// ─────────────────────────────────────────────
+const currentUsername = "{{ username }}" || getCookie('username') || 'admin';
+let liveRunning = false;
+
+// Helper function to get cookie value
+function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop().split(';').shift();
+    return null;
+}
+
+// ─────────────────────────────────────────────
+// Navigation
+// ─────────────────────────────────────────────
+document.querySelectorAll('.nav-item').forEach(item => {
+    item.addEventListener('click', function(e) {
+        if (this.classList.contains('logout')) return;
+        e.preventDefault();
+        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+        this.classList.add('active');
+        document.querySelectorAll('.content-section').forEach(s => s.classList.remove('active'));
+        document.getElementById(this.id.replace('nav-', '') + '-content').classList.add('active');
+        document.getElementById('page-title').textContent = this.textContent.trim();
+        if (this.id === 'nav-settings') loadSettings();
+        if (this.id === 'nav-history') loadHistory();
+    });
+});
+
+// Clock
+function updateTime() {
+    document.getElementById('current-time').textContent =
+        new Date().toLocaleTimeString('en-US', {hour12: true, hour: '2-digit', minute: '2-digit', second: '2-digit'});
+}
+setInterval(updateTime, 1000);
+updateTime();
+
+// ─────────────────────────────────────────────
+// Settings
+// ─────────────────────────────────────────────
+async function loadSettings() {
+    try {
+        const r = await fetch(`/get-settings?username=${currentUsername}`);
+        const d = await r.json();
+        if (d.settings) {
+            const s = d.settings;
+            document.getElementById('alert-threshold').value = s.alert_threshold;
+            document.getElementById('threshold-value').textContent = s.alert_threshold + ' events';
+            document.getElementById('email-notifications').checked = s.email_notifications;
+            document.getElementById('recipient-email').value = s.recipient_email || '';
+            document.getElementById('pet-name').value = s.pet_name || '';
+            document.getElementById('pet-type').value = s.pet_type || 'dog';
+            document.getElementById('pet-age').value = s.pet_age || '';
+        }
+    } catch(e) { console.error('loadSettings:', e); }
+}
+
+async function saveSettings() {
+    const fd = new FormData();
+    fd.append('username', currentUsername);
+    fd.append('alert_threshold', document.getElementById('alert-threshold').value);
+    fd.append('email_notifications', document.getElementById('email-notifications').checked);
+    fd.append('recipient_email', document.getElementById('recipient-email').value);
+    fd.append('pet_name', document.getElementById('pet-name').value);
+    fd.append('pet_type', document.getElementById('pet-type').value);
+    fd.append('pet_age', document.getElementById('pet-age').value || '');
+    try {
+        const r = await fetch('/update-settings', {method:'POST', body:fd});
+        const d = await r.json();
+        alert(d.success ? 'Settings saved!' : 'Error: ' + d.error);
+    } catch(e) { alert('Error: ' + e.message); }
+}
+
+async function testEmailSettings() {
+    if (!document.getElementById('recipient-email').value) { alert('Please enter a recipient email first.'); return; }
+    const el = document.getElementById('test-result');
+    el.textContent = 'Sending…'; el.style.color = '#666';
+    const fd = new FormData(); fd.append('username', currentUsername);
+    try {
+        const r = await fetch('/test-email', {method:'POST', body:fd});
+        const d = await r.json();
+        if (d.success) { el.textContent = '✓ Test email sent!'; el.style.color = '#4CAF50'; }
+        else { el.textContent = '✗ ' + d.error; el.style.color = '#ff6b6b'; }
+    } catch(e) { el.textContent = '✗ ' + e.message; el.style.color = '#ff6b6b'; }
+}
+
+document.getElementById('alert-threshold').addEventListener('input', function() {
+    document.getElementById('threshold-value').textContent = this.value + ' events';
+});
+
+// ─────────────────────────────────────────────
+// History
+// ─────────────────────────────────────────────
+async function loadHistory() {
+    try {
+        const r = await fetch(`/recent-events?username=${currentUsername}`);
+        const d = await r.json();
+        const tb = document.getElementById('stress-history-table-body');
+        tb.innerHTML = '';
+        (d.events || []).forEach(e => {
+            tb.innerHTML += `<tr><td>${e.timestamp}</td>
+                <td><span class="status-badge ${e.stress_class==='Stressed'?'stressed':'normal'}">${e.stress_class}</span></td>
+                <td>${e.stress_intensity}%</td><td>${(e.confidence*100).toFixed(1)}%</td></tr>`;
+        });
+    } catch(e) { console.error(e); }
+    try {
+        const r = await fetch(`/wound-history?username=${currentUsername}`);
+        const d = await r.json();
+        const tb = document.getElementById('wound-history-table-body');
+        tb.innerHTML = '';
+        (d.events || []).forEach(e => {
+            tb.innerHTML += `<tr><td>${e.timestamp}</td>
+                <td>${(e.wound_types||[]).join(', ')||'None'}</td>
+                <td>${e.severity}</td><td>${(e.confidence*100).toFixed(1)}%</td></tr>`;
+        });
+    } catch(e) { console.error(e); }
+}
+
+function showHistoryTab(tab, ev) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    document.getElementById(tab + '-history').classList.add('active');
+    ev.target.classList.add('active');
+}
+
+// ─────────────────────────────────────────────
+// ██  UPLOAD PAGE — Audio / Image / Video  ██
+// ─────────────────────────────────────────────
+
+// ── Helpers to reset upload cards ──
+function resetAudioUpload() {
+    document.getElementById('audio-upload-file').value = '';
+    document.getElementById('audio-upload-info').style.display = 'none';
+    document.getElementById('audio-upload-loading').style.display = 'none';
+    document.getElementById('upload-stress-result').style.display = 'none';
+    document.getElementById('upload-stress-alert-box').style.display = 'none';
+    document.getElementById('btn-analyze-audio-upload').disabled = false;
+}
+
+function resetImageUpload() {
+    document.getElementById('wound-image-upload').value = '';
+    document.getElementById('wound-image-info').style.display = 'none';
+    document.getElementById('image-upload-loading').style.display = 'none';
+    document.getElementById('wound-results-container').style.display = 'none';
+    document.getElementById('wound-alert-box').style.display = 'none';
+    document.getElementById('btn-analyze-wound-image').disabled = false;
+}
+
+function resetVideoUpload() {
+    document.getElementById('wound-video-upload').value = '';
+    document.getElementById('wound-video-info').style.display = 'none';
+    document.getElementById('video-upload-loading').style.display = 'none';
+    document.getElementById('wound-results-container').style.display = 'none';
+    document.getElementById('wound-alert-box').style.display = 'none';
+    document.getElementById('btn-analyze-wound-video').disabled = false;
+}
+
+// ── Audio upload ──────────────────────────────
+const audioUploadInput = document.getElementById('audio-upload-file');
+
+audioUploadInput.addEventListener('change', function () {
+    if (this.files.length === 0) return;
+    // Hide previous results when a new file is chosen
+    document.getElementById('upload-stress-result').style.display = 'none';
+    document.getElementById('upload-stress-alert-box').style.display = 'none';
+    document.getElementById('audio-upload-name').textContent = this.files[0].name;
+    document.getElementById('audio-upload-info').style.display = 'block';
+});
+
+document.getElementById('btn-cancel-audio-upload').addEventListener('click', function () {
+    resetAudioUpload();
+});
+
+document.getElementById('btn-analyze-audio-upload').addEventListener('click', async function () {
+    const file = audioUploadInput.files[0];
+    if (!file) { alert('Please upload an audio file first.'); return; }
+
+    const formData = new FormData();
+    formData.append('audio_file', file);
+    formData.append('username', currentUsername);
+
+    this.disabled = true;
+    document.getElementById('audio-upload-loading').style.display = 'block';
+    document.getElementById('upload-stress-result').style.display = 'none';
+    document.getElementById('upload-stress-alert-box').style.display = 'none';
+
+    try {
+        const response = await fetch('/upload-audio', { method: 'POST', body: formData });
+        const data = await response.json();
+
+        if (!data.success) {
+            alert(data.error || 'Stress prediction failed');
+            return;
+        }
+
+        // Populate result card
+        const sc = data.stress_class;
+        const ind = document.getElementById('upload-stress-indicator');
+        const cls = document.getElementById('upload-stress-class');
+
+        cls.textContent = sc;
+        if (sc === 'Stressed') {
+            ind.className = 'status-indicator stressed';
+            ind.innerHTML = '<i class="fas fa-exclamation-circle"></i>';
+            cls.style.color = '#ff6b6b';
+        } else {
+            ind.className = 'status-indicator normal';
+            ind.innerHTML = '<i class="fas fa-check-circle"></i>';
+            cls.style.color = '#4CAF50';
+        }
+
+        document.getElementById('upload-stress-intensity').textContent = data.stress_intensity + '%';
+        document.getElementById('upload-stress-confidence').textContent = (data.confidence * 100).toFixed(1) + '%';
+        document.getElementById('upload-stress-timestamp').textContent = data.timestamp;
+
+        // Recommendations
+        const recBox = document.getElementById('upload-stress-recs');
+        const recText = document.getElementById('upload-stress-rec-text');
+        const si = data.stress_intensity || 0;
+        if (sc === 'Stressed') {
+            recBox.style.display = 'block';
+            if (si > 70) recText.textContent = '🚨 HIGH STRESS — provide immediate comfort in a quiet space, remove stressors, offer water. Consult a vet if it persists.';
+            else if (si > 40) recText.textContent = '⚠️ MODERATE STRESS — check for environmental stressors and provide familiar toys and comfort items.';
+            else recText.textContent = '⚠️ Low-level stress detected — continue monitoring your pet closely.';
+        } else {
+            recBox.style.display = 'block';
+            recText.textContent = '✅ Your pet appears calm. Continue regular monitoring and vet check-ups.';
+        }
+
+        document.getElementById('upload-stress-result').style.display = 'block';
+        document.getElementById('upload-stress-result').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+        // Alert
+        if (data.alert) {
+            document.getElementById('upload-stress-alert-msg').textContent = data.alert;
+            document.getElementById('upload-stress-alert-box').style.display = 'block';
+        }
+
+    } catch (err) {
+        alert('Error: ' + err.message);
+    } finally {
+        this.disabled = false;
+        document.getElementById('audio-upload-loading').style.display = 'none';
+    }
+});
+
+// ── Image upload ──────────────────────────────
+const imageUploadInput = document.getElementById('wound-image-upload');
+
+imageUploadInput.addEventListener('change', function () {
+    if (this.files.length === 0) return;
+    // Hide previous results when a new file is chosen
+    document.getElementById('wound-results-container').style.display = 'none';
+    document.getElementById('wound-alert-box').style.display = 'none';
+    document.getElementById('wound-image-name').textContent = this.files[0].name;
+    document.getElementById('wound-image-info').style.display = 'block';
+});
+
+document.getElementById('btn-cancel-wound-image').addEventListener('click', function () {
+    resetImageUpload();
+});
+
+document.getElementById('btn-analyze-wound-image').addEventListener('click', async function () {
+    const file = imageUploadInput.files[0];
+    if (!file) { alert('Please upload an image first.'); return; }
+
+    const fd = new FormData();
+    fd.append('image_file', file);
+    fd.append('username', currentUsername);
+
+    this.disabled = true;
+    document.getElementById('image-upload-loading').style.display = 'block';
+    document.getElementById('wound-results-container').style.display = 'none';
+    document.getElementById('wound-alert-box').style.display = 'none';
+
+    try {
+        const res = await fetch('/upload-wound-image', { method: 'POST', body: fd });
+        const data = await res.json();
+
+        if (!data.success) {
+            alert(data.error || 'Image prediction failed');
+            return;
+        }
+
+        displayWoundResults(
+            data.overall_severity,
+            data.wound_types,
+            data.highest_confidence,
+            data.recommendations,
+            data.timestamp,
+            data.alert
+        );
+
+    } catch (err) {
+        alert('Error: ' + err.message);
+    } finally {
+        this.disabled = false;
+        document.getElementById('image-upload-loading').style.display = 'none';
+    }
+});
+
+// ── Video upload ──────────────────────────────
+const videoUploadInput = document.getElementById('wound-video-upload');
+
+videoUploadInput.addEventListener('change', function () {
+    if (this.files.length === 0) return;
+    // Hide previous results when a new file is chosen
+    document.getElementById('wound-results-container').style.display = 'none';
+    document.getElementById('wound-alert-box').style.display = 'none';
+    document.getElementById('wound-video-name').textContent = this.files[0].name;
+    document.getElementById('wound-video-info').style.display = 'block';
+});
+
+document.getElementById('btn-cancel-wound-video').addEventListener('click', function () {
+    resetVideoUpload();
+});
+
+document.getElementById('btn-analyze-wound-video').addEventListener('click', async function () {
+    const file = videoUploadInput.files[0];
+    if (!file) { alert('Please upload a video file.'); return; }
+
+    const fd = new FormData();
+    fd.append('video_file', file);
+    fd.append('username', currentUsername);
+
+    this.disabled = true;
+    document.getElementById('video-upload-loading').style.display = 'block';
+    document.getElementById('wound-results-container').style.display = 'none';
+    document.getElementById('wound-alert-box').style.display = 'none';
+
+    try {
+        const res = await fetch('/process-wound-video', { method: 'POST', body: fd });
+        const data = await res.json();
+
+        if (!data.success) {
+            alert(data.error || 'Video prediction failed');
+            return;
+        }
+
+        displayWoundResults(
+            data.overall_severity,
+            data.wound_types,
+            data.max_confidence,
+            data.recommendations,
+            data.timestamp,
+            data.alert
+        );
+
+    } catch (err) {
+        alert('Error: ' + err.message);
+    } finally {
+        this.disabled = false;
+        document.getElementById('video-upload-loading').style.display = 'none';
+    }
+});
+
+/** Shared helper: populate the wound results card */
+function displayWoundResults(overallSeverity, woundTypes, confidence, recommendations, timestamp, alertMsg) {
+    const ind = document.getElementById('wound-status-indicator');
+    const sev = document.getElementById('wound-overall-severity');
+    sev.textContent = overallSeverity || 'No Wounds Detected';
+
+    if (overallSeverity && overallSeverity.includes('High')) {
+        ind.className = 'status-indicator stressed';
+        ind.innerHTML = '<i class="fas fa-exclamation-circle"></i>';
+        sev.style.color = '#ff6b6b';
+    } else if (overallSeverity && overallSeverity.includes('Medium')) {
+        ind.className = 'status-indicator moderate';
+        ind.innerHTML = '<i class="fas fa-exclamation-triangle"></i>';
+        sev.style.color = '#ffa726';
+    } else {
+        ind.className = 'status-indicator normal';
+        ind.innerHTML = '<i class="fas fa-check-circle"></i>';
+        sev.style.color = '#4CAF50';
+    }
+
+    // Wound type tags
+    const tagsContainer = document.getElementById('wound-types-tags');
+    tagsContainer.innerHTML = '';
+    (woundTypes || []).forEach(t => {
+        const tag = document.createElement('span');
+        tag.className = 'wound-tag';
+        tag.textContent = t.replace(/_/g, ' ').toUpperCase();
+        tagsContainer.appendChild(tag);
+    });
+
+    document.getElementById('wound-confidence-value').textContent =
+        confidence > 0 ? (confidence * 100).toFixed(1) + '%' : 'N/A';
+    document.getElementById('wound-timestamp-value').textContent = timestamp || '';
+
+    // Recommendations list
+    const ul = document.getElementById('wound-recommendations-list');
+    ul.innerHTML = '';
+    (recommendations || []).forEach(r => {
+        const li = document.createElement('li');
+        li.textContent = r;
+        ul.appendChild(li);
+    });
+
+    document.getElementById('wound-results-container').style.display = 'block';
+    document.getElementById('wound-results-container').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    if (alertMsg) {
+        document.getElementById('wound-alert-message').textContent = alertMsg;
+        document.getElementById('wound-alert-box').style.display = 'block';
+    }
+}
+
+// ─────────────────────────────────────────────
+// ██  LIVE DETECTION  ██
+// ─────────────────────────────────────────────
+
+const startBtn    = document.getElementById('start-live-detection');
+const statusBar   = document.getElementById('live-status-bar');
+const statusIcon  = document.getElementById('live-status-icon');
+const statusText  = document.getElementById('live-status-text');
+const progFill    = document.getElementById('live-progress-fill');
+const countdownEl = document.getElementById('live-countdown');
+
+function setStatus(icon, text, pct, countdown) {
+    statusBar.style.display = 'block';
+    statusIcon.textContent = icon;
+    statusText.textContent = text;
+    progFill.style.width = pct + '%';
+    countdownEl.textContent = countdown !== undefined ? countdown : '';
+}
+
+startBtn.addEventListener('click', async function () {
+    if (liveRunning) return;
+    liveRunning = true;
+    startBtn.disabled = true;
+
+    // Reset UI
+    document.getElementById('combined-results').style.display = 'none';
+    document.getElementById('combined-alert-box').style.display = 'none';
+
+    const duration = parseInt(document.getElementById('detection-duration').value, 10);
+
+    // ── Step 1: Request permissions ──────────────
+    setStatus('🔐', 'Requesting microphone & camera access…', 5, '');
+
+    let stream;
+    try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+    } catch (err) {
+        // Fallback: audio only
+        try {
+            stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        } catch (err2) {
+            setStatus('❌', 'Microphone access denied. Please allow microphone access and try again.', 0, '');
+            liveRunning = false;
+            startBtn.disabled = false;
+            return;
+        }
+    }
+
+    // ── Step 2: Show live preview ─────────────────
+    const videoEl = document.getElementById('preview-video');
+    if (stream.getVideoTracks().length > 0) {
+        videoEl.srcObject = stream;
+        document.getElementById('camera-preview').style.display = 'block';
+    }
+
+    // ── Step 3: Choose MIME type ──────────────────
+    let mimeType = 'video/webm;codecs=vp8,opus';
+    if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm;codecs=vp9,opus';
+    if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/webm';
+    if (!MediaRecorder.isTypeSupported(mimeType)) mimeType = 'video/mp4';
+
+    const recorder = new MediaRecorder(stream, { mimeType });
+    const chunks = [];
+    recorder.ondataavailable = e => { if (e.data && e.data.size > 0) chunks.push(e.data); };
+
+    // ── Step 4: Record for exactly `duration` seconds using a Promise + interval ──
+    recorder.start(200); // collect in 200ms chunks
+    setStatus('🔴', `Recording… ${duration}s`, 10, `${duration}s remaining`);
+
+    await new Promise(resolve => {
+        const t0 = Date.now();
+        const tick = setInterval(() => {
+            const elapsed = (Date.now() - t0) / 1000;
+            const remaining = Math.max(0, duration - elapsed);
+            const pct = Math.min(10 + (elapsed / duration) * 55, 65);
+            setStatus('🔴', `Recording… ${remaining.toFixed(1)}s remaining`, pct, `${remaining.toFixed(1)}s`);
+            if (elapsed >= duration) {
+                clearInterval(tick);
+                resolve();
+            }
+        }, 100);
+    });
+
+    // ── Step 5: Stop recorder and release camera ──
+    recorder.stop();
+    await new Promise(resolve => { recorder.onstop = resolve; });
+
+    stream.getTracks().forEach(t => t.stop());
+    videoEl.srcObject = null;
+    document.getElementById('camera-preview').style.display = 'none';
+
+    setStatus('⚙️', 'Processing recording…', 68, '');
+
+    // ── Step 6: Build blobs ───────────────────────
+    const combinedBlob = new Blob(chunks, { type: mimeType });
+
+    let audioBase64;
+    try {
+        audioBase64 = await extractAudioAsWav(combinedBlob);
+    } catch (e) {
+        console.warn('Audio extraction failed, using combined blob as fallback:', e);
+        audioBase64 = await blobToBase64(combinedBlob);
+    }
+
+    setStatus('🔬', 'Sending to AI models…', 72, '');
+
+    // ── Step 7: POST to /live-detect ─────────────
+    try {
+        const fd = new FormData();
+        fd.append('username', currentUsername);
+        fd.append('audio_data', audioBase64);
+        const videoBlob = new Blob(chunks, { type: mimeType });
+        fd.append('video_file', videoBlob, 'live_recording.webm');
+
+        setStatus('🧠', 'AI analysis in progress…', 80, '');
+        const resp = await fetch('/live-detect', { method: 'POST', body: fd });
+        const data = await resp.json();
+
+        setStatus('✅', 'Analysis complete!', 100, '');
+        await sleep(700);
+        statusBar.style.display = 'none';
+
+        if (data.success) {
+            displayLiveResults(data.stress_results, data.wound_results, data.alerts || []);
+        } else {
+            alert('Server error: ' + (data.error || 'Unknown error'));
+        }
+    } catch (err) {
+        setStatus('❌', 'Network error: ' + err.message, 0, '');
+        alert('Network error: ' + err.message);
+    }
+
+    liveRunning = false;
+    startBtn.disabled = false;
+});
+
+// ── Audio extraction helpers ──────────────────
+
+async function extractAudioAsWav(blob) {
+    const arrayBuffer = await blob.arrayBuffer();
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 16000 });
+    const decoded = await audioCtx.decodeAudioData(arrayBuffer);
+    audioCtx.close();
+
+    const numSamples = decoded.length;
+    const numChannels = decoded.numberOfChannels;
+    const pcm = new Float32Array(numSamples);
+    for (let ch = 0; ch < numChannels; ch++) {
+        const channelData = decoded.getChannelData(ch);
+        for (let i = 0; i < numSamples; i++) {
+            pcm[i] += channelData[i] / numChannels;
+        }
+    }
+
+    const wavBuffer = encodeWav(pcm, decoded.sampleRate);
+    const wavBlob = new Blob([wavBuffer], { type: 'audio/wav' });
+    return blobToBase64(wavBlob);
+}
+
+function encodeWav(samples, sampleRate) {
+    const bitsPerSample = 16;
+    const numChannels = 1;
+    const blockAlign = numChannels * bitsPerSample / 8;
+    const byteRate = sampleRate * blockAlign;
+    const dataSize = samples.length * blockAlign;
+    const buffer = new ArrayBuffer(44 + dataSize);
+    const view = new DataView(buffer);
+
+    function writeStr(offset, str) {
+        for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+    }
+
+    writeStr(0, 'RIFF');
+    view.setUint32(4, 36 + dataSize, true);
+    writeStr(8, 'WAVE');
+    writeStr(12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, numChannels, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, byteRate, true);
+    view.setUint16(32, blockAlign, true);
+    view.setUint16(34, bitsPerSample, true);
+    writeStr(36, 'data');
+    view.setUint32(40, dataSize, true);
+
+    let offset = 44;
+    for (let i = 0; i < samples.length; i++) {
+        const s = Math.max(-1, Math.min(1, samples[i]));
+        view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+        offset += 2;
+    }
+    return buffer;
+}
+
+function blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+    });
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ─────────────────────────────────────────────
+// Display Live Results
+// ─────────────────────────────────────────────
+function displayLiveResults(stress, wound, alerts) {
+    // ── Stress ──────────────────────────────────
+    const csInd    = document.getElementById('cs-indicator');
+    const csText   = document.getElementById('combined-stress-class');
+    const csErrRow = document.getElementById('cs-error-row');
+    csErrRow.style.display = 'none';
+
+    if (stress && stress.success) {
+        const sc = stress.stress_class;
+        csText.textContent = sc;
+        if (sc === 'Stressed') {
+            csInd.className = 'status-indicator stressed';
+            csInd.innerHTML = '<i class="fas fa-exclamation-circle"></i>';
+            csText.style.color = '#ff6b6b';
+        } else {
+            csInd.className = 'status-indicator normal';
+            csInd.innerHTML = '<i class="fas fa-check-circle"></i>';
+            csText.style.color = '#4CAF50';
+        }
+        document.getElementById('combined-stress-intensity').textContent = stress.stress_intensity + '%';
+        document.getElementById('combined-stress-confidence').textContent = (stress.confidence * 100).toFixed(1) + '%';
+    } else {
+        csInd.className = 'status-indicator';
+        csInd.innerHTML = '<i class="fas fa-question-circle"></i>';
+        csText.textContent = 'Unavailable';
+        csText.style.color = '#aaa';
+        document.getElementById('combined-stress-intensity').textContent = '—';
+        document.getElementById('combined-stress-confidence').textContent = '—';
+        if (stress && stress.error) {
+            csErrRow.style.display = '';
+            document.getElementById('cs-error-msg').textContent = stress.error;
+        }
+    }
+
+    // ── Wound ────────────────────────────────────
+    const cwInd    = document.getElementById('cw-indicator');
+    const cwText   = document.getElementById('combined-wound-severity');
+    const cwTypes  = document.getElementById('combined-wound-types');
+    const cwErrRow = document.getElementById('cw-error-row');
+    cwTypes.innerHTML = '';
+    cwErrRow.style.display = 'none';
+
+    if (wound && !wound.error) {
+        const sev = wound.severity || 'No wounds detected';
+        cwText.textContent = sev;
+        if (sev.includes('High')) {
+            cwInd.className = 'status-indicator stressed';
+            cwInd.innerHTML = '<i class="fas fa-exclamation-circle"></i>';
+            cwText.style.color = '#ff6b6b';
+        } else if (sev.includes('Medium')) {
+            cwInd.className = 'status-indicator moderate';
+            cwInd.innerHTML = '<i class="fas fa-exclamation-triangle"></i>';
+            cwText.style.color = '#ffa726';
+        } else {
+            cwInd.className = 'status-indicator normal';
+            cwInd.innerHTML = '<i class="fas fa-check-circle"></i>';
+            cwText.style.color = '#4CAF50';
+        }
+        (wound.wound_types || []).forEach(t => {
+            const tag = document.createElement('span');
+            tag.className = 'wound-tag';
+            tag.textContent = t.replace(/_/g, ' ').toUpperCase();
+            cwTypes.appendChild(tag);
+        });
+        document.getElementById('combined-wound-confidence').textContent =
+            wound.confidence >= 0 ? (wound.confidence * 100).toFixed(1) + '%' : '0.0%';
+    } else {
+        cwInd.className = 'status-indicator';
+        cwInd.innerHTML = '<i class="fas fa-question-circle"></i>';
+        cwText.textContent = wound && wound.error ? 'Error' : '—';
+        cwText.style.color = '#aaa';
+        document.getElementById('combined-wound-confidence').textContent = '—';
+        if (wound && wound.error) {
+            cwErrRow.style.display = '';
+            document.getElementById('cw-error-msg').textContent = wound.error;
+        }
+    }
+
+    // ── Recommendations ───────────────────────────
+    const recs = [];
+    const stressClass = stress && stress.success ? stress.stress_class : null;
+    const woundSev    = wound && !wound.error ? (wound.severity || '') : '';
+
+    if (stressClass === 'Stressed') {
+        const si = stress.stress_intensity || 0;
+        if (si > 70) {
+            recs.push('🚨 HIGH STRESS detected — provide immediate comfort in a quiet space');
+            recs.push('Remove stress sources and offer water');
+            recs.push('Consider consulting a veterinarian if stress persists');
+        } else if (si > 40) {
+            recs.push('⚠️ MODERATE STRESS detected');
+            recs.push('Check for environmental stressors');
+            recs.push('Provide familiar toys and comfort items');
+        } else {
+            recs.push('⚠️ Low-level stress detected — continue monitoring');
+        }
+    }
+
+    if (wound && !wound.error && wound.wound_detected) {
+        if (woundSev.includes('High')) {
+            recs.push('🩸 HIGH SEVERITY WOUND — seek immediate veterinary attention');
+            recs.push('Keep wound clean and prevent licking');
+        } else if (woundSev.includes('Medium')) {
+            recs.push('⚠️ MODERATE WOUND — vet consultation recommended within 24 hours');
+            recs.push('Clean with mild antiseptic and monitor for infection');
+        } else {
+            recs.push('✅ MINOR WOUND — clean with warm water and apply pet-safe ointment');
+        }
+    }
+
+    if (stressClass === 'Stressed' && wound && wound.wound_detected) {
+        recs.push('💡 Stress may be pain-related — pain management is important');
+        recs.push('Keep your pet calm to avoid worsening the injury');
+    }
+
+    if (!recs.length) {
+        recs.push('✅ Your pet appears healthy and calm');
+        recs.push('Continue regular monitoring and vet check-ups');
+    }
+
+    const recContainer = document.getElementById('combined-recommendations-list');
+    recContainer.innerHTML = '';
+    recs.forEach(r => {
+        const div = document.createElement('div');
+        div.className = 'recommendation-item';
+        div.innerHTML = `<i class="fas fa-chevron-right"></i> ${r}`;
+        recContainer.appendChild(div);
+    });
+
+    // ── Email alerts ──────────────────────────────
+    if (alerts && alerts.length) {
+        document.getElementById('combined-alert-message').textContent = alerts.join(' | ');
+        document.getElementById('combined-alert-box').style.display = 'block';
+    }
+
+    document.getElementById('combined-results').style.display = 'block';
+    document.getElementById('combined-results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ─────────────────────────────────────────────
+// Init charts (from script.js — called after DOM ready)
+// ─────────────────────────────────────────────
+</script>
+</body>
+</html>
