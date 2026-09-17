@@ -30,7 +30,7 @@ EMAIL_CONFIG = {
     "smtp_server": "smtp.gmail.com",
     "smtp_port": 587,
     "smtp_username": "pet2pulse",
-    "smtp_password": "wnhzoodeudkabwxj",
+    "smtp_password": "wnhzoodeu2454698757xj",
     "sender_email": "pet2pulse@gmail.com",
     "default_subject": "PETSTRESS Alert - Stress Detected"
 }
